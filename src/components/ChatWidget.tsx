@@ -6,6 +6,7 @@ type Message = { role: "user" | "assistant"; content: string };
 type Stage = "RUNNING" | "SLEEPING" | "BUILDING" | "STOPPED" | "UNKNOWN" | "ERROR";
 
 const POLL_MS = 5_000;
+const TOOLTIP_DELAY_MS = 3_000;
 
 export default function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
@@ -13,8 +14,10 @@ export default function ChatWidget() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const tooltipShownRef = useRef(false);
 
   const checkStatus = useCallback(async () => {
     try {
@@ -46,6 +49,18 @@ export default function ChatWidget() {
     });
     return stopPolling;
   }, [checkStatus]);
+
+  // Show tooltip after delay, once per session
+  useEffect(() => {
+    if (tooltipShownRef.current) return;
+    const t = setTimeout(() => {
+      if (!isOpen) {
+        setShowTooltip(true);
+        tooltipShownRef.current = true;
+      }
+    }, TOOLTIP_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [isOpen]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -203,34 +218,66 @@ export default function ChatWidget() {
         </div>
       )}
 
+      {/* Tooltip bubble */}
+      {showTooltip && !isOpen && (
+        <div className="fixed bottom-24 right-6 z-50 animate-fade-up">
+          <div className="relative bg-[var(--bg-elevated)] border border-[var(--accent)]/40 rounded-lg px-4 py-3 shadow-xl max-w-[220px]">
+            <button
+              onClick={() => setShowTooltip(false)}
+              className="absolute top-2 right-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors text-xs leading-none"
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
+            <p className="font-mono text-xs text-[var(--text-primary)] leading-relaxed pr-4">
+              Ask me anything about my experience or projects.
+            </p>
+            <p className="font-mono text-[11px] text-[var(--accent)] mt-1">
+              I&apos;m an AI trained on Harshil&apos;s background →
+            </p>
+            {/* Arrow pointing down */}
+            <span className="absolute -bottom-[7px] right-7 w-3 h-3 bg-[var(--bg-elevated)] border-r border-b border-[var(--accent)]/40 rotate-45" />
+          </div>
+        </div>
+      )}
+
       {/* Floating button */}
-      <button
-        onClick={() => setIsOpen((o) => !o)}
-        aria-label={isOpen ? "Close chat" : "Open chat"}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full border border-[var(--hairline)] bg-[var(--bg-panel)] flex items-center justify-center shadow-lg hover:border-[var(--accent)] hover:bg-[var(--bg-elevated)] transition-colors duration-200 group"
-      >
-        <span
-          className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full border-2 border-[var(--bg-panel)] status-dot"
-          style={{ background: dotColor }}
-        />
-        {isOpen ? (
-          <span className="font-mono text-[var(--text-primary)] text-base leading-none">✕</span>
-        ) : (
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="text-[var(--text-secondary)] group-hover:text-[var(--accent)] transition-colors"
-          >
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
+      <div className="fixed bottom-6 right-6 z-50">
+        {/* Ping ring — only when not open */}
+        {!isOpen && (
+          <span
+            className="absolute inset-0 rounded-full animate-ping opacity-60"
+            style={{ background: "var(--accent)" }}
+          />
         )}
-      </button>
+        <button
+          onClick={() => { setShowTooltip(false); setIsOpen((o) => !o); }}
+          aria-label={isOpen ? "Close chat" : "Open chat"}
+          className="relative w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-transform duration-200 hover:scale-110"
+          style={{
+            background: isOpen ? "var(--bg-elevated)" : "var(--accent)",
+            border: isOpen ? "1px solid var(--hairline)" : "none",
+          }}
+        >
+          {isOpen ? (
+            <span className="font-mono text-[var(--text-primary)] text-base leading-none">✕</span>
+          ) : (
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-[var(--bg)]"
+            >
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          )}
+        </button>
+      </div>
     </>
   );
 }
